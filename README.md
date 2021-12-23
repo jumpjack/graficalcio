@@ -1,7 +1,7 @@
 # graficalcio
 Grafico "intrecciato" campionato di calcio italiano Seria A
 
-https://github.com/jumpjack/graficalcio
+Live: https://jumpjack.github.io/graficalcio/
 
 La pagina mostra l'evoluzione della classifica nel corso delle gionate, evidenziando tramite incroci di linee i "sorpassi" tra squadre.
 
