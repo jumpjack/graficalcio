@@ -7,6 +7,7 @@
 <script src="Chart.bundle.js"></script>
 <script>
 
+// 0.4.0 Correttp bug di partita sbagliata mostrata in tooltip in caso di partite saltate. Da implementare prossima partita in tooltip.
 //
 // 0.3.0
 // Migliorate etichette dei punti, inserendo risultato completo
@@ -176,6 +177,7 @@ function config() {
 		ctx.textAlign = "left";
 		ctx.textBaseline = "bottom";
 			ctx.fillStyle = "#555";
+		// Prepara etichette per ultimi punti di ogni traccia:
 		obj.chart.data.datasets.forEach(function(dataset, i) {
 		   const meta = chartInstance.controller.getDatasetMeta(i);
 		   if ((meta.hidden === false) || (meta.hidden === null)) { // Etichetta solo per squadre non "spente"; "hidden" vale "null" al primo avvio.
@@ -273,8 +275,21 @@ return configVar;
 
 
 function mialabel(tooltipItem, data) {
-console.log(tooltipItem,data);
-	return data.datasets[tooltipItem.datasetIndex].label + ": "  + tooltipItem.yLabel.toFixed(0) + " (Giornata " + tooltipItem.xLabel + ",  " +  coppie[data.datasets[tooltipItem.datasetIndex].label][tooltipItem.xLabel].risultato + ")";
+console.log("param:",tooltipItem,data);
+	prossimaSfida = coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.index+1].risultato;
+    prossimaSfida = prossimaSfida.substr(0,prossimaSfida.indexOf(" "));
+console.log("test:",coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.index+1]);
+console.log("prox:",prossimaSfida);
+	return data.datasets[tooltipItem.datasetIndex].label +
+	": "  +
+	tooltipItem.yLabel.toFixed(0) +
+	" (Giornata " +
+	tooltipItem.xLabel +
+	",  " +
+	coppie[data.datasets[tooltipItem.datasetIndex].label][tooltipItem.xLabel].risultato +
+	"\nProssima:" +
+    coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.xLabel] +
+	")";
 }
 
 
@@ -305,7 +320,7 @@ function elaboraSquadre() {
 	numeroSquadre =  squadre.count;
 	for (var i = 0; i < numeroSquadre; i++) {
 		dettaglioSquadre.innerHTML += squadre.teams[i].id + " - " + squadre.teams[i].name  + "\n";
-		risultati[squadre.teams[i].id] = {"nome" : squadre.teams[i].name, "singoli" : [], "cumulativi" : []};
+		risultati[squadre.teams[i].id] = {"nome" : squadre.teams[i].name, "singoli" : [], "cumulativi" : [], "sfide" : []};
 		coppie[squadreBrevi[squadre.teams[i].name]] = [{}];
 	}
 }
@@ -360,38 +375,59 @@ function elaboraPartite() {
 		}
 		
 		// Prepara array delle coppie di squadre da usare per i tooltip:
-		if (partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].length ===0) {
+		if (partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].length === 0) {
 			partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]] = [];
 			partite.coppie[squadreBrevi[partite.matches[i].homeTeam.name]] = [];
 		}			  
-		partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].push(
-			{
-				"giornata" : partite.matches[i].matchday,
-				"sfidante" :squadreBrevi[partite.matches[i].homeTeam.name],
-				"risultato" :
-					squadreBrevi[partite.matches[i].homeTeam.name] +
-					"-" +
-					squadreBrevi[partite.matches[i].awayTeam.name] +
-					" : " +
-					partite.matches[i].score.fullTime.homeTeam +
-					"-" +
-					partite.matches[i].score.fullTime.awayTeam
-			}
-		);
+		if ((partite.matches[i].score.fullTime.homeTeam != null) && (partite.matches[i].score.fullTime.awayTeam != null)) {
 
-		partite.coppie[squadreBrevi[partite.matches[i].homeTeam.name]].push(
-			{
-				"giornata" : partite.matches[i].matchday,
-				"sfidante" :squadreBrevi[partite.matches[i].awayTeam.name],
-				"risultato" :
-					squadreBrevi[partite.matches[i].homeTeam.name] +
+console.log("Memorizzo " + 						squadreBrevi[partite.matches[i].homeTeam.name] +
+						"-" +
+						squadreBrevi[partite.matches[i].awayTeam.name] +
+						" : " +
+						partite.matches[i].score.fullTime.homeTeam +
+						"-" +
+						partite.matches[i].score.fullTime.awayTeam);
+
+
+			partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].push(
+				{
+					"giornata" : partite.matches[i].matchday,
+					"sfidante" :squadreBrevi[partite.matches[i].homeTeam.name],
+					"risultato" :
+						squadreBrevi[partite.matches[i].homeTeam.name] +
+						"-" +
+						squadreBrevi[partite.matches[i].awayTeam.name] +
+						" : " +
+						partite.matches[i].score.fullTime.homeTeam +
+						"-" +
+						partite.matches[i].score.fullTime.awayTeam
+				}
+			);
+
+
+			partite.coppie[squadreBrevi[partite.matches[i].homeTeam.name]].push(
+				{
+					"giornata" : partite.matches[i].matchday,
+					"sfidante" :squadreBrevi[partite.matches[i].awayTeam.name],
+					"risultato" :
+						squadreBrevi[partite.matches[i].homeTeam.name] +
+						"-" +
+						squadreBrevi[partite.matches[i].awayTeam.name] +
+						" : " +
+						partite.matches[i].score.fullTime.homeTeam +
+						"-" +
+						partite.matches[i].score.fullTime.awayTeam
+				});
+		} else {
+console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadreBrevi[partite.matches[i].homeTeam.name] +
 					"-" +
 					squadreBrevi[partite.matches[i].awayTeam.name] +
 					" : " +
 					partite.matches[i].score.fullTime.homeTeam +
 					"-" +
-					partite.matches[i].score.fullTime.awayTeam
-			});
+					partite.matches[i].score.fullTime.awayTeam );
+		}
 		
 		if (partite.matches[i].score.winner === "HOME_TEAM") {
 			risultati[partite.matches[i].homeTeam.id].singoli.push(3);
@@ -449,9 +485,12 @@ console.log(numeroGiornate);
 		squadra = squadre.teams[i].id;
 		risultati[squadra].cumulativi[0] = 0;
 		risultati[squadra].cumulativi[1] = risultati[squadra].singoli[0];
+        //datiSupplementari[squadra][0]= "Inizio campionato";
+        //datiSupplementari[squadra][1]= "Prima giornata";
 		for (j=2; j <= risultati[squadra].singoli.length ; j++) {
 			somma = risultati[squadra].cumulativi[j-1] + risultati[squadra].singoli[j-1];
 			risultati[squadra].cumulativi[j] = somma ;
+            //datiSupplementari[squadra][j] = "Sfida"; // debug
 		}
 	}
 //console.log("risultati2:",risultati);
@@ -502,7 +541,7 @@ console.log(numeroGiornate);
 	</head>
 	<body>
 		<center> <big><big><big>Grafico campionato di calcio</big></big></big>
-	<br>  v.0.3.0
+	<br>  v.0.4.0
 	<br>
 	<br>
 	<br>
