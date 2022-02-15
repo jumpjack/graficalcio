@@ -7,7 +7,8 @@
 <script src="Chart.bundle.js"></script>
 <script>
 
-// 0.4.0 Correttp bug di partita sbagliata mostrata in tooltip in caso di partite saltate. Da implementare prossima partita in tooltip.
+// 0.5.0 Aggiunta evidenziatura di traccia su hovering di punto o di legenda
+// 0.4.0 Corretto bug di partita sbagliata mostrata in tooltip in caso di partite saltate. Da implementare prossima partita in tooltip.
 //
 // 0.3.0
 // Migliorate etichette dei punti, inserendo risultato completo
@@ -134,6 +135,7 @@ function datasetTemplate(name) {
 		//showLine : true,
 		lineTension: 0,
 		//pointRadius: 1,
+        borderWidth : 1,
 	}
 }
 
@@ -157,9 +159,10 @@ function config() {
 	var configVar = {
 		type : "line",
 		data: {
-	datasets: [] ,
+			datasets: [] ,
 		},
 		options: {
+
 	hover: {
 		animationDuration: 0
 	},
@@ -227,6 +230,21 @@ function config() {
 	legend: {
 		display: true,
 		position: "right",
+		  onHover: function(event, legendItem) {
+		    var ci = this.chart;
+		    var options = ci.options || {};
+		    var hoverOptions = options.hover || {};
+		    hoveredDatasetIndex = legendItem.datasetIndex;
+			for (var i=0; i< window.chartPartite.data.datasets.length-1; i++) {
+                ci.updateHoverStyle(ci.getDatasetMeta(i).data, hoverOptions.mode, false);
+                ci.data.datasets[i].borderWidth = 1;
+			}
+		    ci.updateHoverStyle(ci.getDatasetMeta(hoveredDatasetIndex).data, hoverOptions.mode, true);
+			ci.data.datasets[hoveredDatasetIndex].borderWidth=6;
+		    ci.render();
+			ci.update();
+
+		  },
 	},
 	tooltips: {
 		position: "custom",
@@ -241,7 +259,12 @@ function config() {
 			},
 			title : function() { return "" }, // Rimuove dal tooltip il numero mostrato per default all'inizio
 		},
-		mode: "point"
+		mode: "point",
+	    options: {
+	        interaction: {
+	            mode: 'dataset'
+	        }
+	    },
 	},
 	title: {
 		display: true,
@@ -275,7 +298,12 @@ return configVar;
 
 
 function mialabel(tooltipItem, data) {
-console.log("param:",tooltipItem,data);
+	for (var i = 0; i < data.datasets.length-1; i++) {
+		data.datasets[i].borderWidth = 1;
+	}
+	data.datasets[tooltipItem.datasetIndex].borderWidth = 6;
+	window.chartPartite.update();
+	console.log("param:",tooltipItem,data);
 //	prossimaSfida = coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.index+1].risultato;
 //    prossimaSfida = prossimaSfida.substr(0,prossimaSfida.indexOf(" "));
 //console.log("test:",coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.index+1]);
@@ -541,7 +569,7 @@ console.log(numeroGiornate);
 	</head>
 	<body>
 		<center> <big><big><big>Grafico campionato di calcio</big></big></big>
-	<br>  v.0.4.0
+	<br>  v.0.5.0
 	<br>
 	<br>
 	<br>
