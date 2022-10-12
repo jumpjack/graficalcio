@@ -409,14 +409,14 @@ function elaboraPartite() {
 		}			  
 		if ((partite.matches[i].score.fullTime.homeTeam != null) && (partite.matches[i].score.fullTime.awayTeam != null)) {
 
-console.log("Memorizzo " + 						squadreBrevi[partite.matches[i].homeTeam.name] +
+/*console.log("Memorizzo " + 						squadreBrevi[partite.matches[i].homeTeam.name] +
 						"-" +
 						squadreBrevi[partite.matches[i].awayTeam.name] +
 						" : " +
 						partite.matches[i].score.fullTime.homeTeam +
 						"-" +
 						partite.matches[i].score.fullTime.awayTeam);
-
+*/
 
 			partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].push(
 				{
@@ -448,7 +448,7 @@ console.log("Memorizzo " + 						squadreBrevi[partite.matches[i].homeTeam.name] 
 						partite.matches[i].score.fullTime.awayTeam
 				});
 		} else {
-console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadreBrevi[partite.matches[i].homeTeam.name] +
+/*console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadreBrevi[partite.matches[i].homeTeam.name] +
 					"-" +
 					squadreBrevi[partite.matches[i].awayTeam.name] +
 					" : " +
@@ -456,7 +456,7 @@ console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadre
 					"-" +
 					partite.matches[i].score.fullTime.awayTeam );
 		}
-		
+*/		
 		if (partite.matches[i].score.winner === "HOME_TEAM") {
 			risultati[partite.matches[i].homeTeam.id].singoli.push(3);
 			risultati[partite.matches[i].awayTeam.id].singoli.push(0);
