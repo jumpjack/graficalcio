@@ -1,3 +1,6 @@
+![image](https://user-images.githubusercontent.com/1620953/195278152-14a4d3aa-8991-4673-b74f-bc833e2a94e6.png)
+
+
 # graficalcio
 Grafico "intrecciato" campionato di calcio italiano Seria A
 
