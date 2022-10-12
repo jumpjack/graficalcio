@@ -7,6 +7,12 @@
 <script src="Chart.bundle.js"></script>
 <script>
 
+// 1.0.0 - 12/ott/2022
+//	Sistemo bug di nomi brevi mancanti quando arrivano squadre nuove da serie B;
+//	Messe squadre in legenda in ordine alfabetico per nome breve;
+//  Tento (inutilmente) di accelerare comparsa etichette su valori finali...
+//  Faccio sparire tooltip quando mouse non e' su nessun punto.
+
 // 0.5.0 Aggiunta evidenziatura di traccia su hovering di punto o di legenda
 // 0.4.0 Corretto bug di partita sbagliata mostrata in tooltip in caso di partite saltate. Da implementare prossima partita in tooltip.
 //
@@ -15,7 +21,7 @@
 // Migliorato calendario, aggiungendo separatori e date
 
 //
-// 0.2.0 
+// 0.2.0
 // Etichette in fondo a grafici
 // Calendario
 // Tooltip con sfidante
@@ -38,13 +44,14 @@ scDataPartite = null;
 dataLabel = {};
 coppie = {};
 calendario = {};
-
-
+maxIndex = -1;
+TRACE_WIDTH = 2;
+TRACE_HIGHLIGHTED_WIDTH = 6;
 
 squadreBrevi = {
+	"AS Roma" :  "Roma",
 	"AC Milan" :  "Milan",
 	"ACF Fiorentina" :  "Fiorentina",
-	"AS Roma" :  "Roma",
 	"Atalanta BC" :  "Atalanta",
 	"Bologna FC 1909" :  "Bologna",
 	"Cagliari Calcio" :  "Cagliari",
@@ -61,7 +68,10 @@ squadreBrevi = {
 	"US Sassuolo Calcio" :  "Sassuolo",
 	"Spezia Calcio" :  "Spezia",
 	"UC Sampdoria" :  "Sampdoria",
-	"Torino FC" :  "Torino"
+	"Torino FC" :  "Torino",
+	"US Cremonese" : "Cremonese",
+	"US Lecce" : "Lecce",
+	"AC Monza" : "Monza"
 }
 
 colors = [
@@ -127,7 +137,7 @@ function numHex(s) {
 
 
 function datasetTemplate(name) {
-	return   {
+	return	{
 		data: [],
 		label:	name,
 		borderColor: "#000000",
@@ -135,7 +145,7 @@ function datasetTemplate(name) {
 		//showLine : true,
 		lineTension: 0,
 		//pointRadius: 1,
-        borderWidth : 1,
+		  borderWidth : TRACE_WIDTH
 	}
 }
 
@@ -147,13 +157,33 @@ function chartSetup() {
 		datasets: []
 	}
 	for (var i=0; i < numeroSquadre; i++) {
-		scDataPartite.datasets.push(datasetTemplate("Squadra " + i + " - " + squadre.teams[i].name + " (id=" + squadre.teams[i].id + ")"));
+		if (squadreBrevi[squadre.teams[i].name] != undefined) {
+			scDataPartite.datasets.push(datasetTemplate("Squadra " + i + " - " + squadreBrevi[squadre.teams[i].name] + " (id=" + squadre.teams[i].id + ")"));
+		} else {
+			scDataPartite.datasets.push(datasetTemplate("Squadra " + i + " - " + squadre.teams[i].name + " (id=" + squadre.teams[i].id + ")"));
+console.log("CHART SETUP: manca squadra breve per " , squadre.teams[i].name);
+		}
 	}
 	configPartite.data = scDataPartite;
 	ctxPartite = document.getElementById("graficoPartite").getContext('2d')
 	window.chartPartite = new Chart(ctxPartite,configPartite	 );
+console.log(	scDataPartite.datasets);
 }
 
+function drawLastLabels(chart) {
+	chart.data.datasets.forEach(function(dataset, i) {
+		if (dataLabel["label"+ dataset.data[maxIndex]].scritto === false) { // Scrive una volta sola
+			ctx.fillText( dataLabel["label"+ dataset.data[maxIndex]].testo , xcoord[i], ycoord[i]);
+			dataLabel["label"+ dataset.data[maxIndex]].scritto = true;
+		}
+	});
+}
+
+
+const updateTooltipShow = (chart, enabled) => {
+  chart.options.tooltips.enabled = enabled;
+  chart.update();
+}
 
 function config() {
 	var configVar = {
@@ -163,134 +193,172 @@ function config() {
 		},
 		options: {
 
-	hover: {
-		animationDuration: 0
-	},
-	animation: {
-	  onComplete:
-		function(obj) {
-		dataLabel = {};
-		const chartInstance = obj.chart; //this.chart,
-		ctx = chartInstance.ctx;
-		ctx.font = Chart.helpers.fontString(
-		   11,
-		   Chart.defaults.global.defaultFontStyle,
-		   Chart.defaults.global.defaultFontFamily
-		);
-		ctx.textAlign = "left";
-		ctx.textBaseline = "bottom";
-			ctx.fillStyle = "#555";
-		// Prepara etichette per ultimi punti di ogni traccia:
-		obj.chart.data.datasets.forEach(function(dataset, i) {
-		   const meta = chartInstance.controller.getDatasetMeta(i);
-		   if ((meta.hidden === false) || (meta.hidden === null)) { // Etichetta solo per squadre non "spente"; "hidden" vale "null" al primo avvio.
-		meta.data.forEach(function(bar, index) {
-			if ( index == meta.data.length-1)		  { // Etichetta solo su ultimo valore
-				etichetta = dataLabel["label"+ dataset.data[index]] ;
-				if ((etichetta !== null) && (etichetta  !== undefined)) {
-			// Etichetta pre-esistente: il nome della squadra viene accodato
-			dataLabel["label"+ dataset.data[index]].testo +=  ", " + dataset.label		   ;
-				} else {
-			// Prima etichetta
-			dataLabel["label"+ dataset.data[index]] =  {"testo" : dataset.data[index] + "  " + dataset.label, "scritto" : false};
-				}
-				//ctx.fillText( dataLabel["label"+ dataset.data[index]] , bar._model.x + 10, bar._model.y+5);
-				// Non la scrive subito, sennò alcune le riscrive più volte in caso di punteggi coincidenti, e viene fuori un grassetto
-			} else {
-				datalabel = ""; // Nessuna etichetta in valore intermedi
-			}
-			   });
-			} else {
-		//console.log("Salto: ", dataset, i, meta);
-			}
-		});
-		
-		 // Ripete da capo il ciclo, stavolta solo per scrivere effettivamente le etichette
-		obj.chart.data.datasets.forEach(function(dataset, i) {
-		   const meta = chartInstance.controller.getDatasetMeta(i);
-		   if ((meta.hidden === false) || (meta.hidden === null)) { // Etichetta solo per squadre non "spente"; "hidden" vale "null" al primo avvio.
-		meta.data.forEach(function(bar, index) {
-			if ( index == meta.data.length-1)		  { // Etichetta solo su ultimo valore
-				if (dataLabel["label"+ dataset.data[index]].scritto === false) { // Scrive una volta sola
-			ctx.fillText( dataLabel["label"+ dataset.data[index]].testo , bar._model.x + 10, bar._model.y+5);
-			dataLabel["label"+ dataset.data[index]].scritto = true;
-				}
-			} else {
-				//
-			}
-			   });
-			} else {
-		//console.log("Salto: ", dataset, i, meta);
-			}
-		});		   
-		 
-		 
-	   }
-	},
-	legend: {
-		display: true,
-		position: "right",
-		  onHover: function(event, legendItem) {
-		    var ci = this.chart;
-		    var options = ci.options || {};
-		    var hoverOptions = options.hover || {};
-		    hoveredDatasetIndex = legendItem.datasetIndex;
-			for (var i=0; i< window.chartPartite.data.datasets.length-1; i++) {
-                ci.updateHoverStyle(ci.getDatasetMeta(i).data, hoverOptions.mode, false);
-                ci.data.datasets[i].borderWidth = 1;
-			}
-		    ci.updateHoverStyle(ci.getDatasetMeta(hoveredDatasetIndex).data, hoverOptions.mode, true);
-			ci.data.datasets[hoveredDatasetIndex].borderWidth=6;
-		    ci.render();
-			ci.update();
+			hover: {
+				animationDuration: 0
+			},
+			onHover: function(e, activeElements) { // rimuove tooltip quando il mouse non e' su nessun punto
+			      const {
+			        bottom,
+			        top,
+			        right,
+			        left
+			      } = this.chartArea;
+			      if (e.x >= left && e.x <= right && e.y <= bottom && e.y >= top) {
+			        updateTooltipShow(this, true)
+			      } else {
+			        updateTooltipShow(this, false)
+			      }
+			    },
+			animation: {
+			  onComplete:
+				function(obj) {
+					const chartInstance = obj.chart;
+					ctx = chartInstance.ctx;
+					ctx.textAlign = "left";
+					ctx.textBaseline = "bottom";
+					ctx.fillStyle = "#555";
+					if (!labelsReady) {
+						dataLabel = {};
+						ctx.font = Chart.helpers.fontString(
+							11,
+							Chart.defaults.global.defaultFontStyle,
+							Chart.defaults.global.defaultFontFamily
+						);
+						// Prepara etichette per punti finali di ogni traccia:
+						if (maxIndex < 0) { // Cerca l'ultimo punto solo la prima volta, poi se lo ricorda
+		                    xcoord = [];
+							ycoord = [];
+							obj.chart.data.datasets.forEach(function(dataset, i) {
+								const meta = chartInstance.controller.getDatasetMeta(i);
+								if ((meta.hidden === false) || (meta.hidden === null)) { // Etichetta solo per squadre non "spente"; "hidden" vale "null" al primo avvio.
+									meta.data.forEach(function(bar, index) {
+										if (index == meta.data.length-1)		  { // Etichetta solo su ultimo valore
+					                        maxIndex = index;
+		                                    xcoord[i] = bar._model.x + 10;
+											ycoord[i] = bar._model.y + 5;
+											etichetta = dataLabel["label"+ dataset.data[index]] ;
+											if ((etichetta !== null) && (etichetta  !== undefined)) {
+												// Etichetta pre-esistente: il nome della squadra viene accodato
+												dataLabel["label"+ dataset.data[index]].testo +=  ", " + dataset.label			;
+											} else {
+												// Prima etichetta
+												dataLabel["label"+ dataset.data[index]] =  {"testo" : dataset.data[index] + "  " + dataset.label, "scritto" : false};
+											}
+											//ctx.fillText( dataLabel["label"+ dataset.data[index]] , bar._model.x + 10, bar._model.y+5);
+											// Non la scrive subito, sennò alcune le riscrive più volte in caso di punteggi coincidenti, e viene fuori un grassetto
+										} else {
+											datalabel = ""; // Nessuna etichetta in valore intermedi
+										}
+									});
+								} else {
+							//console.log("Salto: ", dataset, i, meta);
+								}
+							});
+						}
+					} else {
+						//
+					}
 
-		  },
-	},
-	tooltips: {
-		position: "custom",
-		yAlign: null, // Cancella freccetta-puntatore
-		xAlign: 'center',
-		enabled: true,
-		callbacks: {
-			label:
-			function(tooltipItem, data) {
-				var label =  mialabel(tooltipItem, data); // Personalizzazione etichetta di ogni punto
-				return label;
+
+
+					 // Ripete da capo il ciclo, stavolta solo per scrivere effettivamente le etichette
+					obj.chart.data.datasets.forEach(function(dataset, i) {
+						if (dataLabel["label"+ dataset.data[maxIndex]].scritto === false) { // Scrive una volta sola
+							ctx.fillText( dataLabel["label"+ dataset.data[maxIndex]].testo , xcoord[i], ycoord[i]);
+							dataLabel["label"+ dataset.data[maxIndex]].scritto = true;
+						}
+					});
+
+					obj.chart.data.datasets.forEach(function(dataset, i) {
+		                  const meta = chartInstance.controller.getDatasetMeta(i);
+		                  meta.data.forEach(function(bar, index) {
+		                	if (dataLabel["label"+ dataset.data[index]] != undefined) dataLabel["label"+ dataset.data[index]].scritto= false;
+						});
+					});
+
+					labelsReady = true;
+
+
+				}
 			},
-			title : function() { return "" }, // Rimuove dal tooltip il numero mostrato per default all'inizio
-		},
-		mode: "point",
-	    options: {
-	        interaction: {
-	            mode: 'dataset'
-	        }
-	    },
-	},
-	title: {
-		display: true,
-		text: ''
-	},
-	scales: {
-		xAxes: [{
-			position: 'bottom',
-			scaleLabel: {
-				labelString: 'Giornata',
+			legend: {
 				display: true,
+				position: "right",
+				onHover: function(event, legendItem) {
+					var ci = this.chart;
+					var options = ci.options || {};
+					var hoverOptions = options.hover || {};
+					hoveredDatasetIndex = legendItem.datasetIndex;
+					for (var i=0; i< window.chartPartite.data.datasets.length; i++) {
+						 ci.updateHoverStyle(ci.getDatasetMeta(i).data, hoverOptions.mode, false);
+						 ci.data.datasets[i].borderWidth = TRACE_WIDTH;
+					}
+					ci.updateHoverStyle(ci.getDatasetMeta(hoveredDatasetIndex).data, hoverOptions.mode, true);
+					ci.data.datasets[hoveredDatasetIndex].borderWidth = TRACE_HIGHLIGHTED_WIDTH;
+					ci.render();
+					ci.update();
+
+				},
+				onLeave: function(event, legendItem) {
+					var ci = this.chart;
+					var options = ci.options || {};
+					var hoverOptions = options.hover || {};
+					hoveredDatasetIndex = legendItem.datasetIndex;
+					for (var i=0; i < window.chartPartite.data.datasets.length; i++) {
+						 ci.updateHoverStyle(ci.getDatasetMeta(i).data, hoverOptions.mode, false);
+						 ci.data.datasets[i].borderWidth = TRACE_WIDTH;
+					}
+					ci.render();
+					ci.update();
+                    drawLastLabels(window.chartPartite);
+				}
 			},
-		}],
-		yAxes: [{
-			type: 'linear',
-			ticks: {
-				//min: 0,
-				max: 90 ,
-				stepSize : 3,
+			tooltips: {
+				position: "custom",
+				yAlign: null, // Cancella freccetta-puntatore
+				xAlign: 'center',
+				enabled: true,
+				callbacks: {
+					label:
+						function(tooltipItem, data) {
+							var label =  mialabel(tooltipItem, data); // Personalizzazione etichetta di ogni punto
+                            //drawLastLabels(window.chartPartite);
+							return label;
+						},
+					title : function() { return "" }, // Rimuove dal tooltip il numero mostrato per default all'inizio
+				},
+				mode: "point",
+				 options: {
+					  interaction: {
+							mode: 'dataset'
+					  }
+				 },
 			},
-			scaleLabel: {
-				labelString: 'Punti',
-				display: true
+			title: {
+				display: true,
+				text: ''
+			},
+			scales: {
+				xAxes: [{
+					position: 'bottom',
+					scaleLabel: {
+						labelString: 'Giornata',
+						display: true,
+					},
+				}],
+				yAxes: [{
+					type: 'linear',
+					ticks: {
+						//min: 0,
+						max: 90 ,
+						stepSize : 3,
+					},
+					scaleLabel: {
+						labelString: 'Punti',
+						display: true
+					}
+				}]
 			}
-		}]
-	}
 		}
 	};
 return configVar;
@@ -299,15 +367,11 @@ return configVar;
 
 function mialabel(tooltipItem, data) {
 	for (var i = 0; i < data.datasets.length-1; i++) {
-		data.datasets[i].borderWidth = 1;
+		data.datasets[i].borderWidth = TRACE_WIDTH;
 	}
-	data.datasets[tooltipItem.datasetIndex].borderWidth = 6;
+	data.datasets[tooltipItem.datasetIndex].borderWidth = TRACE_HIGHLIGHTED_WIDTH;
 	window.chartPartite.update();
-	console.log("param:",tooltipItem,data);
-//	prossimaSfida = coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.index+1].risultato;
-//    prossimaSfida = prossimaSfida.substr(0,prossimaSfida.indexOf(" "));
-//console.log("test:",coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.index+1]);
-//console.log("prox:",prossimaSfida);
+//console.log("param:",tooltipItem,data);
 	return data.datasets[tooltipItem.datasetIndex].label +
 	": "  +
 	tooltipItem.yLabel.toFixed(0) +
@@ -315,13 +379,12 @@ function mialabel(tooltipItem, data) {
 	tooltipItem.xLabel +
 	",  " +
 	coppie[data.datasets[tooltipItem.datasetIndex].label][tooltipItem.xLabel].risultato +
-//	"\nProssima:" +
-//    coppie[data.datasets[tooltipItem.datasetIndex+1].label][tooltipItem.xLabel] +
 	")";
 }
 
 
 function scaricaSquadre() {
+    labelsReady = false;
   if (DEBUG) {
 		elaboraSquadre(txtSquadre.value);
 	} else {
@@ -347,11 +410,20 @@ function elaboraSquadre() {
 	numSquadre.innerHTML = squadre.count;
 	numeroSquadre =  squadre.count;
 	for (var i = 0; i < numeroSquadre; i++) {
-		dettaglioSquadre.innerHTML += squadre.teams[i].id + " - " + squadre.teams[i].name  + "\n";
-		risultati[squadre.teams[i].id] = {"nome" : squadre.teams[i].name, "singoli" : [], "cumulativi" : [], "sfide" : []};
-		coppie[squadreBrevi[squadre.teams[i].name]] = [{}];
+		if (squadreBrevi[squadre.teams[i].name] != undefined) {
+			dettaglioSquadre.innerHTML += squadre.teams[i].id + " - " + squadreBrevi[squadre.teams[i].name]  + "\n";
+			risultati[squadre.teams[i].id] = {"nome" : squadreBrevi[squadre.teams[i].name], "singoli" : [], "cumulativi" : [], "sfide" : []};
+			coppie[squadreBrevi[squadre.teams[i].name]] = [{}];
+		} else {
+			dettaglioSquadre.innerHTML += squadre.teams[i].id + " - " + squadre.teams[i].name  + "(sistemare)"  + "\n";
+			risultati[squadre.teams[i].id] = {"nome" : squadre.teams[i].name  + "(sistemare)", "singoli" : [], "cumulativi" : [], "sfide" : []};
+			coppie[squadre.teams[i].name  + "(sistemare)"] = [{}];
+			console.log("NOTA PER SVILUPPATORE: Aggiungere nuova squadra "  + squadre.teams[i].name + " in elenco squadre brevi");
+		}
 	}
 }
+
+
 
 function scaricaPartite() {
 	if (DEBUG) {
@@ -361,13 +433,13 @@ function scaricaPartite() {
 		xhr.open("GET", urlPartite);
 		xhr.setRequestHeader("X-Auth-Token", API_KEY);
 		xhr.onreadystatechange = function () {
-		   if (xhr.readyState === 4) {
+			if (xhr.readyState === 4) {
 	  txtPartite.value = xhr.responseText;
 	  partiteRawJSON = xhr.responseText;
 	  elaboraSquadre();
 	  chartSetup();
 	  elaboraPartite();
-		   }};
+			}};
 		xhr.send();
 	}
 }
@@ -385,13 +457,15 @@ function elaboraPartite() {
 	}
 	tot.innerHTML =  numeroGiornate + " + " + numeroGiornate + " (" + 2*numeroGiornate + ")";
 	for (var i=0; i < numeroPartite ; i++) {
-		
+		squadraHome = (squadreBrevi[partite.matches[i].homeTeam.name] != undefined) ?  squadreBrevi[partite.matches[i].homeTeam.name] : partite.matches[i].homeTeam.name + "(sistemare)";
+		squadraAway = (squadreBrevi[partite.matches[i].awayTeam.name] != undefined) ?  squadreBrevi[partite.matches[i].awayTeam.name] : partite.matches[i].awayTeam.name + "(sistemare)"
+
 		// Riempie array calendario:
 		if (calendario[partite.matches[i].matchday].length ===0) {
 			calendario[partite.matches[i].matchday].push(
 			{
-				"home" : squadreBrevi[partite.matches[i].homeTeam.name],
-				"away" : squadreBrevi[partite.matches[i].awayTeam.name],
+				"home" : squadraHome,
+				"away" : squadraAway,
 				"result" : {
 					"home" : partite.matches[i].score.fullTime["homeTeam"] ,
 					"away" : partite.matches[i].score.fullTime["awayTeam"]
@@ -399,33 +473,39 @@ function elaboraPartite() {
 				"date" :  partite.matches[i].utcDate.substring(0,10)
 			});
 		} else {
-			calendario[partite.matches[i].matchday].push({"home" : squadreBrevi[partite.matches[i].homeTeam.name], "away" : squadreBrevi[partite.matches[i].awayTeam.name], "result" : {"home" : partite.matches[i].score.fullTime["homeTeam"] , "away" : partite.matches[i].score.fullTime["awayTeam"]}});
+			calendario[partite.matches[i].matchday].push({"home" : squadraHome, "away" : squadraAway, "result" : {"home" : partite.matches[i].score.fullTime["homeTeam"] , "away" : partite.matches[i].score.fullTime["awayTeam"]}});
 		}
-		
+
 		// Prepara array delle coppie di squadre da usare per i tooltip:
-		if (partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].length === 0) {
-			partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]] = [];
-			partite.coppie[squadreBrevi[partite.matches[i].homeTeam.name]] = [];
-		}			  
+
+		if (partite.coppie[squadraAway] != undefined) {
+			if (partite.coppie[squadraAway].length === 0) {
+				partite.coppie[squadraAway] = [];
+				partite.coppie[squadraHome] = [];
+			}
+		 } else {
+console.log("ERRORE:", squadraAway);
+		 }
+
 		if ((partite.matches[i].score.fullTime.homeTeam != null) && (partite.matches[i].score.fullTime.awayTeam != null)) {
 
-/*console.log("Memorizzo " + 						squadreBrevi[partite.matches[i].homeTeam.name] +
+/*console.log("Memorizzo " + 						squadraHome +
 						"-" +
-						squadreBrevi[partite.matches[i].awayTeam.name] +
+						squadraAway +
 						" : " +
 						partite.matches[i].score.fullTime.homeTeam +
 						"-" +
 						partite.matches[i].score.fullTime.awayTeam);
 */
 
-			partite.coppie[squadreBrevi[partite.matches[i].awayTeam.name]].push(
+			partite.coppie[squadraAway].push(
 				{
 					"giornata" : partite.matches[i].matchday,
-					"sfidante" :squadreBrevi[partite.matches[i].homeTeam.name],
+					"sfidante" :squadraHome,
 					"risultato" :
-						squadreBrevi[partite.matches[i].homeTeam.name] +
+						squadraHome +
 						"-" +
-						squadreBrevi[partite.matches[i].awayTeam.name] +
+						squadraAway +
 						" : " +
 						partite.matches[i].score.fullTime.homeTeam +
 						"-" +
@@ -434,30 +514,30 @@ function elaboraPartite() {
 			);
 
 
-			partite.coppie[squadreBrevi[partite.matches[i].homeTeam.name]].push(
+			partite.coppie[squadraHome].push(
 				{
 					"giornata" : partite.matches[i].matchday,
-					"sfidante" :squadreBrevi[partite.matches[i].awayTeam.name],
+					"sfidante" : squadraAway,
 					"risultato" :
-						squadreBrevi[partite.matches[i].homeTeam.name] +
+						squadraHome +
 						"-" +
-						squadreBrevi[partite.matches[i].awayTeam.name] +
+						squadraAway +
 						" : " +
 						partite.matches[i].score.fullTime.homeTeam +
 						"-" +
 						partite.matches[i].score.fullTime.awayTeam
 				});
 		} else {
-/*console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadreBrevi[partite.matches[i].homeTeam.name] +
+/*console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadraHome +
 					"-" +
-					squadreBrevi[partite.matches[i].awayTeam.name] +
+					squadraAway +
 					" : " +
 					partite.matches[i].score.fullTime.homeTeam +
 					"-" +
 					partite.matches[i].score.fullTime.awayTeam );
-*/					
+*/
 		}
-		
+
 		if (partite.matches[i].score.winner === "HOME_TEAM") {
 			risultati[partite.matches[i].homeTeam.id].singoli.push(3);
 			risultati[partite.matches[i].awayTeam.id].singoli.push(0);
@@ -474,7 +554,7 @@ function elaboraPartite() {
 //console.log("risultati1:",risultati);
 		tbCalendario = document.createElement("table");
 		tbCalendario.border = 0;
-console.log(numeroGiornate);	 
+console.log(numeroGiornate);
 		for (var i = 1; i <= numeroGiornate*2; i++) {
 			tr = document.createElement("TR"); // Riga-giornata
 			td = document.createElement("TD");
@@ -503,23 +583,23 @@ console.log(numeroGiornate);
 			rigaVuota =  document.createElement("TR");
 			casellaVuota =  document.createElement("TD");
 			casellaVuota.innerHTML = "----------";
-            rigaVuota.appendChild(casellaVuota);
+				rigaVuota.appendChild(casellaVuota);
 			tbCalendario.appendChild(rigaVuota);
 		}
 		spnCalendario.appendChild(tbCalendario);
 
-		
+
 	// Calcola risultati cumulativi in base a quelli singoli appena memorizzati:
 	for (var i=0; i < squadre.teams.length; i++) { // Scorre tutte le squadre
 		squadra = squadre.teams[i].id;
 		risultati[squadra].cumulativi[0] = 0;
 		risultati[squadra].cumulativi[1] = risultati[squadra].singoli[0];
-        //datiSupplementari[squadra][0]= "Inizio campionato";
-        //datiSupplementari[squadra][1]= "Prima giornata";
+		  //datiSupplementari[squadra][0]= "Inizio campionato";
+		  //datiSupplementari[squadra][1]= "Prima giornata";
 		for (j=2; j <= risultati[squadra].singoli.length ; j++) {
 			somma = risultati[squadra].cumulativi[j-1] + risultati[squadra].singoli[j-1];
 			risultati[squadra].cumulativi[j] = somma ;
-            //datiSupplementari[squadra][j] = "Sfida"; // debug
+				//datiSupplementari[squadra][j] = "Sfida"; // debug
 		}
 	}
 //console.log("risultati2:",risultati);
@@ -557,8 +637,16 @@ console.log(numeroGiornate);
 //
 			}
 		}
-		scDataPartite.datasets[i].data = risultati[squadre.teams[i].id].cumulativi;
-		scDataPartite.datasets[i].label = squadreBrevi[squadre.teams[i].name];
+		 var keys = Object.values(risultati);
+		 risultatiOrdinati =  keys.sort(function(a,b){
+			  return (b.nome>a.nome) ? -1:1
+		 });
+		scDataPartite.datasets[i].data = risultatiOrdinati[i].cumulativi; // risultati[squadre.teams[i].id].cumulativi; // DEBUG:  modificare qui per mettere squadre in ordine alfabetico
+		if (squadreBrevi[squadre.teams[i].name] != undefined) {
+			scDataPartite.datasets[i].label = risultatiOrdinati[i].nome; //squadreBrevi[squadre.teams[i].name];
+		} else {
+			scDataPartite.datasets[i].label = risultatiOrdinati[i].nome; //; squadre.teams[i].name + "(sistemare)";
+		}
 		tblSingoli.appendChild(rigaSingoli);
 		tblCumulativi.appendChild(rigaCumulativi);
 	}
@@ -569,66 +657,66 @@ console.log(numeroGiornate);
 </script>
 	</head>
 	<body>
-		<center> <big><big><big>Grafico campionato di calcio</big></big></big>
-	<br>  v.0.5.0
-	<br>
-	<br>
-	<br>
+		<center> <big><big><big>Grafico sovrapposto campionato di calcio italiano serie A</big></big></big><br>
+		 v.1.0.0 - 12/ott/2022<br>
+         Sorgenti: <a href="https://github.com/jumpjack/graficalcio<br>">link</a><br>
 		</center>
 		<button id="btnGo" name="btnGo" onclick="scaricaSquadre()">Aggiorna</button>
 		<div style="width:1200px">
-	<canvas id="graficoPartite" name="graficoPartite" height="180">
-	</canvas>
+			<canvas id="graficoPartite" name="graficoPartite" height="180">
+			</canvas>
 		</div>
 		<br>
-		<button id="btnDebug" name="btnDebug" onclick="elaboraSquadre(); chartSetup(); elaboraPartite()">DEBUG</button><br>
-		<button id="btnScaricaSquadre" name="btnScaricaSquadre" onclick="scaricaSquadre()">Scarica squadre
-		</button>
-		<button id="btnElaboraSquadre" name="btnElaboraSquadre" onclick="elaboraSquadre()">Elabora squadre
-		</button>
-		<br>
-		<button id="btnScaricapartite" name="btnScaricapartite" onclick="scaricaPartite()">Scarica partite
-		</button>
-		<button id="btnElaboraPartite" name="btnElaboraPartite" onclick="elaboraPartite()">Elabora partite
-		</button>
-		<br>
-		<button id="btnChartSetup" name="btnChartSetup" onclick="chartSetup()">Grafico
-		</button>
-		<br>
-<textarea id="txtSquadre" name="txtSquadre" cols="100" rows="5" visible="true"></textarea>
-		<br>
-<textarea id="txtPartite" name="txtPartite" cols="100" rows="5" visible="true"></textarea>
-		<br>
-		<br>
-		<br>Numero squadre:
-		<span id="numSquadre" name="numSquadre">
-		</span>
-		<br>Giornate totali:
-		<span id="tot" name="tot">
-		</span>
-		<br>Giornate giocate:
-		<span id="spnGiocate" name="spnGiocate">
-		</span>
-		<br>Giornate rimaste:
-		<span id="rimaste" name="rimaste">
-		</span>
-		<br>
-		<br>Squadre:
-		<br>
-<textarea id="dettaglioSquadre" name="dettaglioSquadre" cols="50" rows="22"> </textarea>
-		<br>
-		<br>Risultati singoli:
-		<br>
-		<span id="singoli" name="singoli">
-		</span>
-		<br>
-		<br>Risultati cumulativi:
-		<br>
-		<span id="cumulativi" name="cumulativi">
-		</span>
-		<br>
-		<span id="spnCalendario" name="spnCalendario">
-		</span>
+		<div id="debugArea" name="debugArea"  style="display:none">
+			<button id="btnDebug" name="btnDebug" onclick="elaboraSquadre(); chartSetup(); elaboraPartite()">DEBUG</button><br>
+			<button id="btnScaricaSquadre" name="btnScaricaSquadre" onclick="scaricaSquadre()">Scarica squadre
+			</button>
+			<button id="btnElaboraSquadre" name="btnElaboraSquadre" onclick="elaboraSquadre()">Elabora squadre
+			</button>
+			<br>
+			<button id="btnScaricapartite" name="btnScaricapartite" onclick="scaricaPartite()">Scarica partite
+			</button>
+			<button id="btnElaboraPartite" name="btnElaboraPartite" onclick="elaboraPartite()">Elabora partite
+			</button>
+			<br>
+			<button id="btnChartSetup" name="btnChartSetup" onclick="chartSetup()">Grafico
+			</button>
+			<br>
+	<textarea id="txtSquadre" name="txtSquadre" cols="100" rows="5" visible="true"></textarea>
+			<br>
+	<textarea id="txtPartite" name="txtPartite" cols="100" rows="5" visible="true"></textarea>
+			<br>
+			<br>
+			<br>Numero squadre:
+			<span id="numSquadre" name="numSquadre">
+			</span>
+			<br>Giornate totali:
+			<span id="tot" name="tot">
+			</span>
+			<br>Giornate giocate:
+			<span id="spnGiocate" name="spnGiocate">
+			</span>
+			<br>Giornate rimaste:
+			<span id="rimaste" name="rimaste">
+			</span>
+			<br>
+			<br>Squadre:
+			<br>
+	<textarea id="dettaglioSquadre" name="dettaglioSquadre" cols="50" rows="22"> </textarea>
+			<br>
+			<br>Risultati singoli:
+			<br>
+			<span id="singoli" name="singoli">
+			</span>
+			<br>
+			<br>Risultati cumulativi:
+			<br>
+			<span id="cumulativi" name="cumulativi">
+			</span>
+			<br>
+			<span id="spnCalendario" name="spnCalendario">
+			</span>
+		</div>
 		<br>
 		<br>
 <script>
