@@ -7,6 +7,10 @@
 <script src="Chart.bundle.js"></script>
 <script>
 
+// 2.0.0 - 2/2/2023
+// Aggiornato ad api V4
+// Aggiunto proxy php per accesso ad API
+
 // 1.0.0 - 12/ott/2022
 //	Sistemo bug di nomi brevi mancanti quando arrivano squadre nuove da serie B;
 //	Messe squadre in legenda in ordine alfabetico per nome breve;
@@ -30,8 +34,8 @@
 
 DEBUG = false;
 var API_KEY = "1fe331b9a62a4020a2de808446cf6c51";
-var urlPartite = "https://api.football-data.org/v2/competitions/2019/matches";
-var urlSquadre = "https://api.football-data.org/v2/competitions/2019/teams";
+var urlPartite = "https://win98.altervista.org/proxy-calcio.php?type=partite";
+var urlSquadre = "https://win98.altervista.org/proxy-calcio.php?type=squadre";
 partite = "";
 squadre = "";
 partiteRawJSON = "";
@@ -167,7 +171,7 @@ console.log("CHART SETUP: manca squadra breve per " , squadre.teams[i].name);
 	configPartite.data = scDataPartite;
 	ctxPartite = document.getElementById("graficoPartite").getContext('2d')
 	window.chartPartite = new Chart(ctxPartite,configPartite	 );
-console.log(	scDataPartite.datasets);
+console.log("scDataPartite.datasets=",	scDataPartite.datasets);
 }
 
 function drawLastLabels(chart) {
@@ -389,7 +393,8 @@ function scaricaSquadre() {
 		elaboraSquadre(txtSquadre.value);
 	} else {
 		var xhr = new XMLHttpRequest();
-		xhr.open("GET", urlSquadre);
+console.log("Scarico ", urlSquadre);
+		xhr.open("POST", urlSquadre);
 		xhr.setRequestHeader("X-Auth-Token", API_KEY);
 		xhr.onreadystatechange = function () {
 			if (xhr.readyState === 4) {
@@ -406,7 +411,7 @@ function scaricaSquadre() {
 
 function elaboraSquadre() {
 	squadre =  JSON.parse(squadreRawJSON);
-	//console.log(squadre);
+console.log(squadre);
 	numSquadre.innerHTML = squadre.count;
 	numeroSquadre =  squadre.count;
 	for (var i = 0; i < numeroSquadre; i++) {
@@ -434,12 +439,13 @@ function scaricaPartite() {
 		xhr.setRequestHeader("X-Auth-Token", API_KEY);
 		xhr.onreadystatechange = function () {
 			if (xhr.readyState === 4) {
-	  txtPartite.value = xhr.responseText;
-	  partiteRawJSON = xhr.responseText;
-	  elaboraSquadre();
-	  chartSetup();
-	  elaboraPartite();
-			}};
+        	  txtPartite.value = xhr.responseText;
+        	  partiteRawJSON = xhr.responseText;
+        	  elaboraSquadre();
+        	  chartSetup();
+        	  elaboraPartite();
+			}
+        };
 		xhr.send();
 	}
 }
@@ -448,8 +454,8 @@ function scaricaPartite() {
 function elaboraPartite() {
 	partite =  JSON.parse(partiteRawJSON);
 	partite.coppie = coppie;
-	//console.log("Partite:" , partite);
-	numeroPartite = partite.count;
+console.log("Partite:" , partite);
+	numeroPartite = partite.matches.length;
 	numeroGiornate = numeroPartite / numeroSquadre;
 	for (var i=0; i < 2*numeroGiornate+2; i++) {
 		scDataPartite.labels.push(i);	 // Il numero di label determina la larghezza del grafico: predispone grafico per tutte le giornate, piu' un po' di margine a destra
@@ -457,9 +463,11 @@ function elaboraPartite() {
 	}
 	tot.innerHTML =  numeroGiornate + " + " + numeroGiornate + " (" + 2*numeroGiornate + ")";
 	for (var i=0; i < numeroPartite ; i++) {
+        // v2: in score: homeTeam, awayTeam
+        // v4: in score: home, away
 		squadraHome = (squadreBrevi[partite.matches[i].homeTeam.name] != undefined) ?  squadreBrevi[partite.matches[i].homeTeam.name] : partite.matches[i].homeTeam.name + "(sistemare)";
 		squadraAway = (squadreBrevi[partite.matches[i].awayTeam.name] != undefined) ?  squadreBrevi[partite.matches[i].awayTeam.name] : partite.matches[i].awayTeam.name + "(sistemare)"
-
+console.log(squadraHome, squadraAway);
 		// Riempie array calendario:
 		if (calendario[partite.matches[i].matchday].length ===0) {
 			calendario[partite.matches[i].matchday].push(
@@ -467,13 +475,13 @@ function elaboraPartite() {
 				"home" : squadraHome,
 				"away" : squadraAway,
 				"result" : {
-					"home" : partite.matches[i].score.fullTime["homeTeam"] ,
-					"away" : partite.matches[i].score.fullTime["awayTeam"]
+					"home" : partite.matches[i].score.fullTime["home"] ,
+					"away" : partite.matches[i].score.fullTime["away"]
 				},
 				"date" :  partite.matches[i].utcDate.substring(0,10)
 			});
 		} else {
-			calendario[partite.matches[i].matchday].push({"home" : squadraHome, "away" : squadraAway, "result" : {"home" : partite.matches[i].score.fullTime["homeTeam"] , "away" : partite.matches[i].score.fullTime["awayTeam"]}});
+			calendario[partite.matches[i].matchday].push({"home" : squadraHome, "away" : squadraAway, "result" : {"home" : partite.matches[i].score.fullTime["home"] , "away" : partite.matches[i].score.fullTime["away"]}});
 		}
 
 		// Prepara array delle coppie di squadre da usare per i tooltip:
@@ -487,15 +495,15 @@ function elaboraPartite() {
 console.log("ERRORE:", squadraAway);
 		 }
 
-		if ((partite.matches[i].score.fullTime.homeTeam != null) && (partite.matches[i].score.fullTime.awayTeam != null)) {
+		if ((partite.matches[i].score.fullTime.home != null) && (partite.matches[i].score.fullTime.away != null)) {
 
 /*console.log("Memorizzo " + 						squadraHome +
 						"-" +
 						squadraAway +
 						" : " +
-						partite.matches[i].score.fullTime.homeTeam +
+						partite.matches[i].score.fullTime.home +
 						"-" +
-						partite.matches[i].score.fullTime.awayTeam);
+						partite.matches[i].score.fullTime.away);
 */
 
 			partite.coppie[squadraAway].push(
@@ -507,9 +515,9 @@ console.log("ERRORE:", squadraAway);
 						"-" +
 						squadraAway +
 						" : " +
-						partite.matches[i].score.fullTime.homeTeam +
+						partite.matches[i].score.fullTime.home +
 						"-" +
-						partite.matches[i].score.fullTime.awayTeam
+						partite.matches[i].score.fullTime.away
 				}
 			);
 
@@ -523,18 +531,18 @@ console.log("ERRORE:", squadraAway);
 						"-" +
 						squadraAway +
 						" : " +
-						partite.matches[i].score.fullTime.homeTeam +
+						partite.matches[i].score.fullTime.home +
 						"-" +
-						partite.matches[i].score.fullTime.awayTeam
+						partite.matches[i].score.fullTime.away
 				});
 		} else {
 /*console.log("Giornata "  + partite.matches[i].matchday +  " saltata:" + 	squadraHome +
 					"-" +
 					squadraAway +
 					" : " +
-					partite.matches[i].score.fullTime.homeTeam +
+					partite.matches[i].score.fullTime.home +
 					"-" +
-					partite.matches[i].score.fullTime.awayTeam );
+					partite.matches[i].score.fullTime.away );
 */
 		}
 
@@ -551,7 +559,7 @@ console.log("ERRORE:", squadraAway);
 			risultati[partite.matches[i].awayTeam.id].singoli.push(1);
 		}
 	}
-//console.log("risultati1:",risultati);
+console.log("risultati1:",risultati);
 		tbCalendario = document.createElement("table");
 		tbCalendario.border = 0;
 console.log(numeroGiornate);
@@ -563,9 +571,9 @@ console.log(numeroGiornate);
 			for (var part=0; part < calendario[i].length; part++) {
 				trG = document.createElement("TR"); // Riga partita singola
 				tdG1 = document.createElement("TD");
-					tdG1.innerHTML = calendario[i][part].home + " - " + calendario[i][part].away + " ";
+					tdG1.innerHTML = calendario[i][part].homeTeam + " - " + calendario[i][part].awayTeam + " ";
 				tdG2 = document.createElement("TD");
-					tdG2.innerHTML = calendario[i][part].result.home + "-" + calendario[i][part].result.away;
+					tdG2.innerHTML = calendario[i][part].result.homeTeam + "-" + calendario[i][part].result.awayTeam;
 				trG.appendChild(tdG1);
 				trG.appendChild(tdG2);
 				tbGiornata.appendChild(trG);
@@ -658,7 +666,7 @@ console.log(numeroGiornate);
 	</head>
 	<body>
 		<center> <big><big><big>Grafico sovrapposto campionato di calcio italiano serie A</big></big></big><br>
-		 v.1.0.0 - 12/ott/2022<br>
+		 v.2.0.0 - 2/feb/2023<br>
          Sorgenti: <a href="https://github.com/jumpjack/graficalcio<br>">link</a><br>
 		</center>
 		<button id="btnGo" name="btnGo" onclick="scaricaSquadre()">Aggiorna</button>
